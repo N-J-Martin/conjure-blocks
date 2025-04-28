@@ -1,5 +1,7 @@
+//from conjure-oxide tree-sitter. had to remove grammar(), also consider installing treesitter, might be more readable
 import { seq, choice, repeat, optional, prec} from "./predefinedFunctions";
-export const grammar = {
+
+export const grammar =  {
   name: 'essence',
 
   extras: $ => [
@@ -9,19 +11,17 @@ export const grammar = {
   ],
 
   rules: {
-    //top level statements
-    /*
-    program: $ => repeat(choice(
+    //top level statements - use to change shape and define statment connectors?
+    /*program: $ => repeat(choice(
       $.find_statement_list,
       $.constraint_list,
       $.letting_statement_list,
-      $.dominance_relation
     )),
     */
     //single_line_comment: $ => token(seq('$', /.*/)),
 
     //e_prime_label: $ => token("language ESSENCE' 1.0"),
-
+    
     //general
     constant: $ => choice(
       $.integer,
@@ -29,16 +29,14 @@ export const grammar = {
       $.FALSE
     ),
 
-    integer: $ => choice(/[0-9]+/, /-[0-9]+/),
+    integer: $ => /[0-9]+/,
 
     TRUE: $ => "true",
 
     FALSE: $ => "false",
 
+    //need to replace soon
     variable: $ => {},
-
-    //meta-variable (aka template argument)
-    metavar: $ => seq("&", $.variable),
 
     //find statements
     find_statement_list: $ => seq("find", repeat($.find_statement)),
@@ -49,14 +47,20 @@ export const grammar = {
       $.domain,
       optional(",")
     ),
-
-    variable_list: $ => seq(
+    
+    // as range list, ensure list properly
+    /*variable_list: $ => seq(
       $.variable,
       optional(repeat(seq(
         ",",
         $.variable
       )))
-    ),
+    ),*/
+    variable_list: $ => repeat(seq(
+        ",",
+        $.variable
+      ))
+    ,
 
     domain: $ => choice(
       $.bool_domain,
@@ -66,17 +70,18 @@ export const grammar = {
 
     bool_domain: $ => "bool",
 
-    int_domain: $ => prec.left(seq(
-      "int",
+    // removed prec.left (add back in)
+    int_domain: $ => seq(
+      "int", 
       optional(seq(
         "(",
         $.range_list,
         //TODO: eventually add in expressions here
         ")"
       ))
-    )),
+    ),
 
-    range_list: $ => prec(2, seq(
+    /*range_list: $ => prec(2, seq(
       choice(
         $.int_range,
         $.integer
@@ -88,7 +93,9 @@ export const grammar = {
           $.integer
         ),
       )))
-    )),
+    )),*/
+    // remove precedence, so don't get duplicate brackets, also ensures list corrects
+    range_list : $ => repeat(seq(",", choice($.int_range, $.integer))),
 
     int_range: $ => seq(optional($.expression), "..", optional($.expression)),
 
@@ -98,16 +105,20 @@ export const grammar = {
     letting_statement: $ => seq(
       $.variable_list,
       "be",
-      choice($.expression, seq("domain", $.domain))
+      choice($.expression, $.domain_expr)
     ),
+
+    // adding given so can demonstrate data entry
+    given_list: $ => seq("given", repeat(seq($.find_statement))),
 
     //constraints
     constraint_list: $ => seq("such that", repeat(seq($.expression, optional(",")))),
-
+    // separated out for
     bracket_expr: $ => seq("(", $.expression, ")"),
+    domain_expr: $ => seq("domain", $.domain),
+
     expression: $ => choice(
       $.bracket_expr,
-      $.metavar,
       $.not_expr,
       $.abs_value,
       $.exponent,
@@ -119,9 +130,12 @@ export const grammar = {
       $.or_expr,
       $.implication,
       $.quantifier_expr,
+      $.expr_list,
       $.constant,
       $.variable,
-      $.from_solution
+      $.comparing,
+      $.additive,
+      $.muliplicative
     ),
 
     not_expr: $ => prec(20, seq("!", $.expression)),
@@ -133,19 +147,19 @@ export const grammar = {
     negative_expr: $ => prec(15, prec.left(seq("-", $.expression))),
 
     product_expr: $ => prec(10, prec.left(seq($.expression, $.multiplicative_op, $.expression))),
-
+    
     multiplicative_op: $ => choice("*", "/", "%"),
 
     sum_expr: $ => prec(1, prec.left(seq($.expression, $.additive_op, $.expression))),
 
-    additive_op: $ => choice("+", "-"),
+    additive_op: $ => choice("+", "-"), 
 
     comparison: $ => prec(0, prec.left(seq($.expression, $.comp_op, $.expression))),
 
     comp_op: $ => choice("=", "!=", "<=", ">=", "<", ">"),
 
     and_expr: $ => prec(-1, prec.left(seq($.expression, "/\\", $.expression))),
-
+    
     or_expr: $ => prec(-2, prec.left(seq($.expression, "\\/", $.expression))),
 
     implication: $ => prec(-4, prec.left(seq($.expression, "->", $.expression))),
@@ -153,23 +167,47 @@ export const grammar = {
     quantifier_expr: $ => prec(-10, seq(
       choice("and", "or", "min", "max", "sum", "allDiff"),
       "([",
-      repeat(seq(
-        $.expression,
-        optional(",")
-      )),
+      $.expr_list,
       "])"
     )),
 
-    from_solution: $ => seq(
-      "fromSolution",
-      "(",
-      $.variable,
-      ")"
+    expr_list: $ => repeat(seq(
+      $.expression,
+      optional(",")
+    )), 
+
+    
+    //adding other toolbox/colour only categories
+    muliplicative: $ => choice(
+      $.product_expr,
+      $.multiplicative_op
     ),
 
-    dominance_relation: $ => seq(
-      "dominanceRelation",
-      $.expression
+    additive: $ => choice(
+      $.additive_op,
+      $.sum_expr
+    ),
+
+    comparing: $ => choice(
+      $.comparison,
+      $.comp_op
+    ),
+
+    find: $ => choice(
+      $.find_statement,
+      $.find_statement_list,
+      $.given_list
+    ),
+    
+    letting: $ => choice(
+      $.letting_statement,
+      $.letting_statement_list
+    ),
+
+    range: $ => choice(
+      $.int_range,
+      $.range_list
     )
   }
-}
+
+};
